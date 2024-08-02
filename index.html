@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Efeito Visual Hipnótico em WebGL - Experiência Interativa de Arte Digital</title>
+    <meta name="description" content="Explore uma fascinante experiência visual interativa criada com WebGL. Este shader dinâmico apresenta padrões hipnóticos em preto, roxo e branco, oferecendo uma jornada única pela arte digital e programação criativa.">
+    <meta name="keywords" content="WebGL, shader, arte digital, programação criativa, efeitos visuais, interatividade, experiência imersiva">
+    <meta name="author" content="Senti">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://seusite.com/webgl-shader-experience">
+    <meta property="og:title" content="Efeito Visual Hipnótico em WebGL - Experiência Interativa de Arte Digital">
+    <meta property="og:description" content="Mergulhe em uma experiência visual única criada com WebGL. Padrões hipnóticos em preto, roxo e branco que desafiam sua percepção.">
+    <meta property="og:image" content="https://seusite.com/imagem-preview-shader.jpg">
+    <meta property="og:url" content="https://seusite.com/webgl-shader-experience">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VisualArtwork",
+      "name": "Efeito Visual Hipnótico em WebGL",
+      "author": {
+        "@type": "Person",
+        "name": "Senti"
+      },
+      "description": "Uma experiência visual interativa criada com WebGL, apresentando padrões hipnóticos em preto, roxo e branco.",
+      "artMedium": "WebGL, JavaScript",
+      "artform": "Arte Digital Interativa",
+      "genre": "Arte Generativa"
+    }
+    </script>
+    <style>
+        body { margin: 0; padding: 0; background-color: black; font-family: Arial, sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        p { font-size: 16px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <canvas id="glCanvas" aria-label="Animação WebGL de padrões hipnóticos"></canvas>
+    <div id="info">
+        <h1>Efeito Visual Hipnótico em WebGL</h1>
+        <p>Esta é uma experiência interativa de arte digital criada com WebGL. Observe os padrões hipnóticos em preto, roxo e branco que evoluem com o tempo.</p>
+    </div>
+    <canvas id="glCanvas"></canvas>
+    <script>
+        const vertexShaderSource = `
+            attribute vec4 aVertexPosition;
+            void main() {
+                gl_Position = aVertexPosition;
+            }
+        `;
+
+        const fragmentShaderSource = `
+            precision highp float;
+            uniform vec2 iResolution;
+            uniform float iTime;
+
+            // Implementação manual de cosh
+            float cosh(float x) {
+                float e = exp(x);
+                return (e + 1.0 / e) / 2.0;
+            }
+
+            vec3 palette(float t) {
+                // Preto, roxo e branco
+                vec3 a = vec3(0.5, 0.5, 0.5);
+                vec3 b = vec3(0.5, 0.5, 0.5);
+                vec3 c = vec3(1.0, 1.0, 1.0);
+                vec3 d = vec3(0.7, 0.0, 1.0); // Ajustado para roxo
+                return a + b * cos(6.28318 * (c * t + d));
+            }
+
+            void main() {
+                vec2 fragCoord = gl_FragCoord.xy;
+                vec2 uv = (fragCoord * 2.0 - iResolution) / iResolution.y;
+                vec2 uv0 = uv;
+                vec3 finalColor = vec3(0.0);
+                
+                for (float i = 0.0; i < 4.0; i++) {
+                    uv = fract(uv * 1.5) - 0.5;
+                    float d = length(uv) * exp(-length(uv0));
+                    vec3 col = palette(length(uv0) + i * 0.4 + iTime * 0.4);
+                    
+                    // Adicionando um pequeno termo imaginário
+                    float real = d * 8.0 + iTime;
+                    float imag = 0.1 * sin(iTime); // Termo imaginário sutil
+                    d = sin(real) * cosh(imag) / 8.0; // Parte real do seno complexo
+                    
+                    d = abs(d);
+                    d = pow(0.01 / d, 1.2);
+                    finalColor += col * d;
+                }
+                
+                // Ajuste para enfatizar preto, roxo e branco
+                finalColor = pow(finalColor, vec3(0.7));
+                finalColor = mix(vec3(0.0), vec3(1.0), finalColor);
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Erro de compilação do shader:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function initShaderProgram(gl, vsSource, fsSource) {
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+            if (!vertexShader || !fragmentShader) {
+                return null;
+            }
+
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                console.error('Erro ao inicializar o programa de shader:', gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+
+            return shaderProgram;
+        }
+
+        function main() {
+            const canvas = document.querySelector('#glCanvas');
+            const gl = canvas.getContext('webgl');
+
+            if (!gl) {
+                console.error('WebGL não disponível');
+                return;
+            }
+
+            const shaderProgram = initShaderProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+            if (!shaderProgram) {
+                console.error('Falha ao inicializar o programa de shader');
+                return;
+            }
+
+            const programInfo = {
+                program: shaderProgram,
+                attribLocations: {
+                    vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                },
+                uniformLocations: {
+                    iResolution: gl.getUniformLocation(shaderProgram, 'iResolution'),
+                    iTime: gl.getUniformLocation(shaderProgram, 'iTime'),
+                },
+            };
+
+            const buffers = initBuffers(gl);
+
+            function render(now) {
+                now *= 0.001;  // Converte para segundos
+
+                drawScene(gl, programInfo, buffers, now);
+
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        }
+
+        function initBuffers(gl) {
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            const positions = [
+                -1.0,  1.0,
+                 1.0,  1.0,
+                -1.0, -1.0,
+                 1.0, -1.0,
+            ];
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+            return {
+                position: positionBuffer,
+            };
+        }
+
+        function drawScene(gl, programInfo, buffers, time) {
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.useProgram(programInfo.program);
+
+            gl.uniform2f(programInfo.uniformLocations.iResolution, gl.canvas.width, gl.canvas.height);
+            gl.uniform1f(programInfo.uniformLocations.iTime, time);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.vertexPosition,
+                2,
+                gl.FLOAT,
+                false,
+                0,
+                0
+            );
+            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        window.onload = main;
+
+        function resizeCanvas() {
+            const canvas = document.querySelector('#glCanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    </script>
+</body>
+</html>
